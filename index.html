@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>制作依頼ツール ── システム全体像レビュー & 実装フロー提案（rev.2）</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --ink-2:#444; --ink-3:#6b6b6b;
+    --line:#e3e0da; --line-2:#d2cec6;
+    --bg:#f7f5f1; --card:#ffffff;
+    --accent:#d6403a;
+    --accent-soft:#fbeceb;
+    --pm:#2f6f8f; --pm-soft:#e9f2f6;
+    --data:#3b7d4f; --data-soft:#eaf4ec;
+    --sec:#9a6a1f; --sec-soft:#f6efe2;
+    --ok:#3b7d4f; --warn:#b8761a;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
+    line-height:1.8; font-size:15.5px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:0 22px 96px}
+  header.hero{max-width:1040px;margin:0 auto;padding:54px 22px 30px}
+  .kicker{font-size:12.5px;letter-spacing:.12em;color:var(--accent);font-weight:700;text-transform:uppercase}
+  h1{font-size:30px;line-height:1.35;margin:.3em 0 .25em;font-weight:800;letter-spacing:.01em}
+  .sub{color:var(--ink-3);font-size:14px;margin:0}
+  .rev{display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:3px 10px;border-radius:999px}
+  .lead{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin:18px 0 0;box-shadow:var(--shadow)}
+  .lead b{color:var(--accent)}
+  nav.toc{position:sticky;top:0;z-index:20;background:rgba(247,245,241,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:26px 0 0;padding:10px 0}
+  nav.toc .wrap{padding:0 22px;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{font-size:12.5px;color:var(--ink-2);text-decoration:none;padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;transition:.15s}
+  nav.toc a:hover{border-color:var(--accent);color:var(--accent)}
+  section{margin-top:46px}
+  h2{font-size:21px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:11px;scroll-margin-top:64px}
+  h2 .n{flex:0 0 auto;width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;font-size:14px;display:grid;place-items:center;font-weight:700}
+  h2 + .desc{color:var(--ink-3);font-size:14px;margin:2px 0 18px;padding-left:41px}
+  h3{font-size:16.5px;font-weight:700;margin:26px 0 10px}
+  p{margin:0 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow)}
+  .muted{color:var(--ink-3)}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.02em}
+  .tag.pm{background:var(--pm-soft);color:var(--pm)}
+  .tag.data{background:var(--data-soft);color:var(--data)}
+  .tag.sec{background:var(--sec-soft);color:var(--sec)}
+  .rec-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#fff;background:var(--accent);padding:3px 10px;border-radius:999px}
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:6px 0}
+  .step{flex:1 1 150px;min-width:140px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative}
+  .step .t{font-weight:700;font-size:13.5px;margin-bottom:3px}
+  .step .d{font-size:12px;color:var(--ink-3);line-height:1.55}
+  .arrow{flex:0 0 26px;display:grid;place-items:center;color:var(--line-2);font-size:20px}
+  .issues{display:grid;gap:12px}
+  .issue{background:#fff;border:1px solid var(--line);border-left:4px solid var(--ink);border-radius:10px;padding:15px 18px}
+  .issue.pm{border-left-color:var(--pm)}
+  .issue.data{border-left-color:var(--data)}
+  .issue.sec{border-left-color:var(--sec)}
+  .issue h4{margin:0 0 4px;font-size:15px;display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .issue .now{font-size:13px;color:var(--ink-3);margin:2px 0 6px}
+  .issue .fix{font-size:13.5px;background:var(--accent-soft);border-radius:8px;padding:8px 11px;color:#7a2420}
+  .issue .fix b{color:var(--accent)}
+  .callout{background:var(--pm-soft);border:1px solid #cfe2ea;border-radius:12px;padding:16px 18px;margin:14px 0 0}
+  .callout h4{margin:0 0 6px;font-size:15px;color:var(--pm);display:flex;align-items:center;gap:8px}
+  .callout .two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+  .callout .two > div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:11px 13px;font-size:13px}
+  .callout .two .x{color:var(--ink-3)}
+  .callout .two .o{border-color:var(--pm)}
+  .callout .two b{display:block;margin-bottom:3px}
+  .diagram{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);overflow-x:auto}
+  .lane{display:flex;align-items:center;gap:14px;margin:0 0 4px}
+  .lane-label{flex:0 0 96px;font-size:11.5px;font-weight:700;color:var(--ink-3);text-align:right;letter-spacing:.04em}
+  .node{background:#fff;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 14px;font-size:13px;min-width:120px;text-align:center;font-weight:600}
+  .node.acc{border-color:var(--accent);background:var(--accent-soft);color:#7a2420}
+  .node.ink{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .node small{display:block;font-weight:400;font-size:11px;color:var(--ink-3);margin-top:2px}
+  .node.acc small{color:#a8534e}
+  .node.ink small{color:#bdbdbd}
+  .vsep{height:18px;width:2px;background:var(--line-2);margin:2px 0 2px 52px}
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:6px}
+  .dbox{border:1px solid var(--line);border-radius:10px;padding:13px 15px;background:#fbfaf8}
+  .dbox .h{font-weight:700;font-size:13.5px;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+  .dbox .h .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .dbox ul{margin:0;padding-left:17px;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+  .phase{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:0;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+  .phase > summary{list-style:none;cursor:pointer;padding:16px 20px;display:flex;align-items:center;gap:14px;font-weight:700}
+  .phase > summary::-webkit-details-marker{display:none}
+  .phase .ph-n{flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:14px}
+  .phase .ph-meta{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:500;text-align:right}
+  .phase .body{padding:4px 20px 20px 68px;border-top:1px solid var(--line)}
+  .phase[open] > summary{border-bottom:0}
+  .checklist{list-style:none;margin:10px 0 0;padding:0}
+  .checklist li{position:relative;padding:5px 0 5px 28px;font-size:13.5px;border-bottom:1px dashed var(--line)}
+  .checklist li:last-child{border-bottom:0}
+  .checklist li::before{content:"";position:absolute;left:2px;top:9px;width:15px;height:15px;border:1.5px solid var(--line-2);border-radius:4px}
+  .checklist li b{color:var(--ink)}
+  code{background:#f0ede7;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#7a2420}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f1eee9;font-weight:700;font-size:12.5px}
+  tr:last-child td{border-bottom:0}
+  .qa{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:12px}
+  .qa .q{font-weight:700;font-size:15px;margin-bottom:6px}
+  .qa .r{font-size:13.5px;background:var(--accent-soft);border-radius:8px;padding:9px 12px;margin-top:8px;color:#7a2420}
+  .qa .r b{color:var(--accent)}
+  .pdca{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .pdca .c{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow)}
+  .pdca .c .l{font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--accent)}
+  .pdca .c p{font-size:13px;color:var(--ink-2);margin:5px 0 0}
+  .decided{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .decided li{position:relative;padding:9px 12px 9px 38px;background:var(--data-soft);border:1px solid #cfe6d4;border-radius:9px;font-size:13.5px}
+  .decided li::before{content:"✓";position:absolute;left:13px;top:9px;color:var(--data);font-weight:800}
+  .decided li b{color:#2a5d3a}
+  .todo{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+  .todo li{position:relative;padding:9px 12px 9px 34px;background:#fff;border:1px solid var(--line);border-radius:9px;font-size:13.5px}
+  .todo li::before{content:"→";position:absolute;left:13px;top:9px;color:var(--accent);font-weight:800}
+  footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink-3);margin:14px 0 0}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  @media(max-width:680px){
+    .lane-label{flex-basis:60px}
+    h1{font-size:24px}
+    .phase .body{padding-left:20px}
+    .callout .two{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">制作依頼ツール ／ システムレビュー</div>
+  <h1>システム全体像の客観レビュー & 実装フロー提案</h1>
+  <p class="sub">作成: 2026-06-14 ／ 対象: ユウキさんのFigma構想 ／ 観点: プロジェクト管理・データ管理・セキュリティ</p>
+  <span class="rev">rev.2 ─ オーナー方針（新規アプリ不可）に合わせ「Slackアプリ不使用／Webhook方式」へ更新</span>
+
+  <div class="lead">
+    <p style="margin:0 0 8px"><b>結論（先に3つ）。</b>構想の方向性は正しく、技術スタック（Next.js / Notion / Slack / Google SSO / Vercel）もこの規模に最適です。オーナーhiroさんの方針（新規Slackアプリは追加不可）を踏まえ、要点は次の3つに更新しました。</p>
+    <p style="margin:0 0 4px">① <b>入口は「チャンネルのブックマーク」からフォームを開く</b>方式（Slackアプリ不要の標準機能）。「会話→bot→リンク選択」の多段はやめる。</p>
+    <p style="margin:0 0 4px">② <b>依頼を最初に「改訂／新規／相談」で分岐</b>させ、種別ごとに必要項目だけ出す（簡単な依頼は軽く、KV・広告は企画背景まで必須に）。</p>
+    <p style="margin:0">③ <b>Slack連携はBotではなくIncoming Webhook</b>（hiroさんが代理発行）で、専用の受付チャンネル <code>#83_creative_クリ室依頼受付</code> に集約投稿。<b>Notionを唯一の正本(SoT)</b>とし、Slackは連絡用と割り切る。</p>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#understand">① 私の理解</a>
+    <a href="#bookmark">② ブックマークとは</a>
+    <a href="#review">③ 改善ポイント</a>
+    <a href="#diagram">④ 再整理した全体図</a>
+    <a href="#examples">⑤ ご質問への回答</a>
+    <a href="#flow">⑥ 実装フロー</a>
+    <a href="#pdca">⑦ PDCA結果</a>
+    <a href="#decided">⑧ 決定事項と残課題</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ① 理解 -->
+<section id="understand">
+  <h2><span class="n">1</span>まず、あなたの構想の理解</h2>
+  <p class="desc">Figmaの図とプロジェクトファイル（CLAUDE.md / BRIEF.md）から読み取った構想です。認識がずれていたら指摘してください。</p>
+
+  <div class="card">
+    <p style="margin-top:0"><b>作りたいもの</b>＝「制作依頼ツール」。各部署がWebフォームで与件を記入すると、<b>① Slackの受付チャンネルに与件のまとめが自動投稿</b>され、<b>② Notionの依頼管理DBにチケットとして自動登録</b>される。Notionは「依頼チケット」と「制作物アーカイブ」の二役を担い、社内の誰でも閲覧可能。最終データは社内Googleドライブに格納し、そのURLをNotionチケットに登録する。</p>
+
+    <div class="flow">
+      <div class="step"><div class="t">① 入口</div><div class="d">Slackチャンネルのブックマークからフォームを開く（アプリ不要）</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="t">② フォーム記入</div><div class="d">種別を選び、必要な与件だけ入力</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="t">③ 自動連携</div><div class="d">受付chに要約を投稿＋Notionにチケット作成</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="t">④ 進行</div><div class="d">スレッドで制作進行（デザイナー↔依頼者）</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="t">⑤ 納品</div><div class="d">Driveに校了データ→URLをNotionに登録</div></div>
+    </div>
+
+    <p class="muted" style="margin:14px 0 0;font-size:13px">関連: 修正依頼ツール（既存）・企画書作成ツール（別開発）・CREATIVE STUDIO（アセット管理）。チャンネルは <code>番号_creative_●●</code> の命名規則（81=チーム内 / 82=部署・更新依頼 / 83=スポット依頼 / 84=社外クライアント臨時）。現状の課題は、納期・データ格納先・構成ラフが抜けやすく、管理が属人化していること。</p>
+  </div>
+</section>
+
+<!-- ② ブックマーク解説 -->
+<section id="bookmark">
+  <h2><span class="n">2</span>「チャンネルのブックマーク」とは？（補足）</h2>
+  <p class="desc">検索で出てくる個人用の「保存（後で見る）」と紛らわしいので、今回使う機能をはっきりさせます。</p>
+  <div class="callout">
+    <h4>📌 同じ「ブックマーク」でも2種類あります</h4>
+    <div class="two">
+      <div class="x"><b>① 個人の「保存済み（後で見る）」</b>自分だけのリストにメッセージを保存する機能。検索で出てくるのはこれ。<u>今回は使いません。</u></div>
+      <div class="o"><b>② チャンネルの「ブックマークバー」← これを使う</b>チャンネル名のすぐ下にある、リンクやファイルを貼れる横並びのバー。<b>チャンネルのメンバー全員に共通で表示</b>されます。</div>
+    </div>
+    <p style="margin:12px 0 0;font-size:13.5px">今回の組み込みは「<b>受付チャンネルや各依頼チャンネルの上部に、制作依頼フォームへのリンクを"常設ボタン"として置く</b>」だけです。依頼者は上部の <code>📝 制作依頼フォーム</code> を押すだけでフォームを開けます。<b>アプリのインストールは不要・無料プランで使えます。</b></p>
+    <p style="margin:8px 0 0;font-size:13px;color:var(--ink-3)">設定方法（1分）：チャンネル上部のブックマーク追加（＋）→「リンク」→ フォームのURLと表示名を入力。代替として「ピン留めメッセージ」や「チャンネル説明欄」でも可能ですが、常時見えて押しやすいブックマークが最推奨。<b>実際に貼るときは画面を見ながらご案内します。</b></p>
+  </div>
+</section>
+
+<!-- ③ レビュー -->
+<section id="review">
+  <h2><span class="n">3</span>3観点での改善ポイント</h2>
+  <p class="desc">プロジェクト管理 <span class="tag pm">PM</span>／データ管理 <span class="tag data">データ</span>／セキュリティ <span class="tag sec">セキュリティ</span> で洗い出しました。各項目に推奨対応を添えています。</p>
+
+  <h3>プロジェクト管理の観点</h3>
+  <div class="issues">
+    <div class="issue pm">
+      <h4><span class="tag pm">PM</span>入口が多段すぎて離脱しやすい</h4>
+      <div class="now">現状: 「スレッドを立てる→botを呼ぶ→リンクを選ぶ→フォームを開く」の4ステップ。ITリテラシー中程度の依頼者には手数が多い。</div>
+      <div class="fix"><b>推奨:</b> <b>チャンネルのブックマークにフォームのリンクを常設</b>し、ワンクリックで開く。Slackアプリ不要で実現でき、手数が大きく減ります。</div>
+    </div>
+    <div class="issue pm">
+      <h4><span class="tag pm">PM</span>納期が「スケジュール感」のまま曖昧</h4>
+      <div class="now">現状: 最も欠けやすい与件が納期。フォーム項目も「スケジュール感」という主観表現。</div>
+      <div class="fix"><b>推奨:</b> 納期を<b>カレンダー必須入力</b>に。「希望納期」＋（デザイナーが後で入れる）「確定納期」の2本立て。種別ごとの<b>標準リードタイムを画面に表示</b>し、無理な短納期は自動で「要相談」フラグ。</div>
+    </div>
+    <div class="issue pm">
+      <h4><span class="tag pm">PM</span>窓口が1人＝取りこぼしリスク</h4>
+      <div class="now">現状: 受付・トリアージ・進行管理がすべてユウキさん1人に集中（月20件以上）。</div>
+      <div class="fix"><b>推奨:</b> Notionに<b>「未トリアージ」ビュー</b>を用意し、新規は必ずここに溜まる設計に。受付chに集約されるためhiroさんも横から見え、属人化が緩和。ステータスと担当者で進捗を可視化。</div>
+    </div>
+    <div class="issue pm">
+      <h4><span class="tag pm">PM</span>ステータスの型が未定義</h4>
+      <div class="now">現状: 受付→対応中→確認中→完了の流れは構想にあるが、定義・更新者・優先度ルールが未確定。</div>
+      <div class="fix"><b>推奨:</b> <b>未対応→対応中→確認中→修正対応→完了（＋保留・差戻し）</b>で固定（分かりにくい「トリアージ/見積」は不採用）。更新はデザイナー。<b>優先度</b>は「納期×種別」から半自動算出。</div>
+    </div>
+  </div>
+
+  <h3>データ管理の観点</h3>
+  <div class="issues">
+    <div class="issue data">
+      <h4><span class="tag data">データ</span>情報が3か所に散る（正本が不明確）</h4>
+      <div class="now">現状: 会話＝Slack、チケット＝Notion、ファイル＝Drive。どれが正かが曖昧だと内容がずれる。</div>
+      <div class="fix"><b>推奨:</b> 役割を固定。<b>Notion＝正本</b>／Slack＝連絡のみ／Drive＝ファイル保管。特にSlack無料プランは<b>履歴90日で消える</b>ため、与件は必ずNotionに完全保存（Slackは要約のみ）。</div>
+    </div>
+    <div class="issue data">
+      <h4><span class="tag data">データ</span>データ格納先が毎回曖昧</h4>
+      <div class="now">現状: 最終データの所在（依頼者側か制作側か）が不明なまま依頼が来る。</div>
+      <div class="fix"><b>推奨:</b> 依頼ごとに一意の<b>依頼ID</b>を発番し、<b>Driveフォルダ名を依頼IDと連動</b>。v1は「命名規則＋手動作成」、v2でDrive API自動作成へ。NotionチケットにDrive URL欄を必須化。</div>
+    </div>
+    <div class="issue data">
+      <h4><span class="tag data">データ</span>二重送信・重複チケット</h4>
+      <div class="now">現状: フォーム送信時にネット遅延で連打されると、Notionに同じ依頼が二重作成され得る。</div>
+      <div class="fix"><b>推奨:</b> 送信トークン（冪等キー）で<b>二重登録を防止</b>。サーバー側で「Notion作成→成功後にSlack投稿」の順にし、Slack失敗時はチケットを残して再送。</div>
+    </div>
+    <div class="issue data">
+      <h4><span class="tag data">データ</span>Slack集約での割り切り</h4>
+      <div class="now">前提: Incoming Webhookは「1 URL=1チャンネル固定」。部署別チャンネルへの自動振り分けはできない。</div>
+      <div class="fix"><b>推奨:</b> v1は<b>受付ch 1つに集約</b>（むしろ管理は楽）。部署/ブランドはフォーム項目→Notion/Driveで管理。将来どうしても部署chへ振りたければ、hiroさんに<b>ch毎のWebhook発行</b>を追加依頼。</div>
+    </div>
+  </div>
+
+  <h3>セキュリティの観点</h3>
+  <div class="issues">
+    <div class="issue sec">
+      <h4><span class="tag sec">セキュリティ</span>公開URLが無防備になりやすい</h4>
+      <div class="now">現状: VercelのURLは初期状態だとインターネットに公開。Googleログインを「画面だけ」に付けても、APIが素通りだと意味がない。</div>
+      <div class="fix"><b>推奨:</b> <b>画面とAPIの両方</b>で認証必須に。Google OAuthで <code>hd=crazy.co.jp</code>（許可ドメイン）を指定し、<b>サーバー側でもメールが@crazy.co.jpか検証</b>。</div>
+    </div>
+    <div class="issue sec">
+      <h4><span class="tag sec">セキュリティ</span>Slack連携はWebhookに（アプリ追加できない制約）</h4>
+      <div class="now">前提: hiroさん方針で新規アプリ(Bot)は追加不可（アプリ数上限）。Botトークン前提のショートカット/スレッド投稿は使えない。</div>
+      <div class="fix"><b>推奨:</b> <b>既存アプリのIncoming Webhook（hiroが代理発行）</b>で受付chに投稿。副次効果として<b>Slackからの着信エンドポイントが無くなり</b>、署名検証やスラッシュコマンドの仕組みが不要に＝攻撃面が小さくなります。</div>
+    </div>
+    <div class="issue sec">
+      <h4><span class="tag sec">セキュリティ</span>シークレットの取り扱い</h4>
+      <div class="now">現状: Notionトークン・<b>Slack Webhook URL</b>・Google Secretは漏れると悪用される（Webhook URLはそれ自体が"投稿できる鍵"）。</div>
+      <div class="fix"><b>推奨:</b> 全シークレットは<b>Vercelの環境変数（サーバー側のみ）</b>で管理し、ブラウザに出さない。Notion連携は<b>対象DBだけ共有</b>。Driveの共有は<b>ドメイン限定</b>（「リンクを知る全員」にしない）。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ④ 図 -->
+<section id="diagram">
+  <h2><span class="n">4</span>再整理したシステム全体図</h2>
+  <p class="desc">アプリ不使用（Webhook方式）を前提にした推奨モデルです。入口を簡素化し、Notionを正本に据え、各連携にセキュリティ対策を組み込んでいます。</p>
+
+  <div class="diagram">
+    <div class="lane">
+      <div class="lane-label">依頼者</div>
+      <div class="node">Slackの依頼チャンネル<small>81〜84番台</small></div>
+      <div class="arrow">→</div>
+      <div class="node acc">チャンネルのブックマーク<small>📝 制作依頼フォーム（アプリ不要）</small></div>
+    </div>
+    <div class="vsep"></div>
+
+    <div class="lane">
+      <div class="lane-label">入力</div>
+      <div class="node acc">制作依頼フォーム<small>Next.js / Vercel</small></div>
+      <div class="arrow">→</div>
+      <div class="node">種別を最初に選択<small>改訂 / 新規 / 相談</small></div>
+      <div class="arrow">→</div>
+      <div class="node">種別別の項目を表示<small>必要な与件だけ</small></div>
+    </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0 110px">🔒 Googleログイン（@crazy.co.jp 限定・画面＋API両方で検証）</p>
+    <div class="vsep"></div>
+
+    <div class="lane">
+      <div class="lane-label">サーバー</div>
+      <div class="node ink">送信処理（APIルート）<small>① Notion作成 → ② Webhook投稿 の順／冪等キーで二重防止</small></div>
+    </div>
+    <div class="vsep"></div>
+
+    <div class="dgrid">
+      <div class="dbox">
+        <div class="h"><span class="dot" style="background:var(--data)"></span>Notion DB（正本 / SoT）</div>
+        <ul>
+          <li>依頼チケットを自動作成</li>
+          <li>ステータス・担当・優先度・納期を一元管理</li>
+          <li>「未トリアージ」ビューで取りこぼし防止</li>
+          <li>制作物アーカイブも兼用</li>
+        </ul>
+      </div>
+      <div class="dbox">
+        <div class="h"><span class="dot" style="background:var(--accent)"></span>Slack 受付ch（連絡のみ）</div>
+        <ul>
+          <li><code>#83_creative_クリ室依頼受付</code> へWebhook投稿</li>
+          <li>与件の要約＋Notionリンクを自動投稿</li>
+          <li>以降の進行・校正はスレッドで</li>
+          <li>hiroさんも閲覧可／履歴90日で消える</li>
+        </ul>
+      </div>
+      <div class="dbox">
+        <div class="h"><span class="dot" style="background:var(--sec)"></span>Googleドライブ（ファイル）</div>
+        <ul>
+          <li>依頼IDと連動したフォルダに保管</li>
+          <li>校了データを格納</li>
+          <li>フォルダURLをNotionチケットに登録</li>
+          <li>共有はドメイン限定</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="vsep"></div>
+    <div class="lane">
+      <div class="lane-label">運用</div>
+      <div class="node">ユウキさんがNotionで<br>トリアージ・進行管理<small>ステータス更新→依頼者へ連絡</small></div>
+      <div class="arrow">→</div>
+      <div class="node ink">完了・アーカイブ<small>CSV自動エクスポートで保険</small></div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>今回開発の中心</span>
+      <span><i style="background:var(--ink)"></i>サーバー/自動処理</span>
+      <span><i style="background:var(--data)"></i>データ正本</span>
+      <span>🔒 セキュリティ要点</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <p style="margin:0"><b>元の構想からの主な変更点は3つ</b>です。①入口を「会話→bot→リンク選択」から<b>チャンネルのブックマーク</b>へ。②フォーム冒頭に<b>種別の分岐</b>を追加。③Slack連携を<b>Bot→Incoming Webhook（受付chに集約）</b>に変更し、データの役割を<b>Notion＝正本／Slack＝連絡／Drive＝ファイル</b>と明文化。骨格（Next.js・Notion・Slack・Drive）はそのままです。</p>
+  </div>
+</section>
+
+<!-- ⑤ 具体例回答 -->
+<section id="examples">
+  <h2><span class="n">5</span>いただいたご質問への回答</h2>
+  <p class="desc">具体例に、それぞれ実務手順レベルで回答します（アプリ不使用・Webhook前提に更新）。</p>
+
+  <div class="qa">
+    <div class="q">Q-A. 新しい依頼チャンネル（82番台など）を作ったとき、どんな登録が必要か？</div>
+    <p style="margin:0;font-size:13.5px">「チャンネルを作る＝システムに認識させる」ための<b>登録作業</b>をチェックリスト化します。アプリ(Bot)を使わないので<b>bot招待は不要</b>になり、手順はシンプルです。</p>
+    <ol style="font-size:13.5px;margin:10px 0 0;padding-left:20px">
+      <li><b>ルーティング設定に1行追加</b>：チャンネル名／部署／ブランド／既定の種別／Drive親フォルダ。<span class="rec-pill">推奨</span> 対応表は<b>Notionの設定用DB</b>で持つ＝コードを触らずユウキさんが追加可能</li>
+      <li><b>Drive側に保管フォルダを用意</b>（命名規則に沿う。<code>02_案件管理</code>配下のブランド/事業別フォルダ）</li>
+      <li><b>チャンネルのブックマークに「制作依頼フォーム」リンクを設置</b>（テンプレ化しておけば貼るだけ）</li>
+    </ol>
+    <div class="r"><b>補足:</b> Slack投稿先は受付ch 1つに集約するため、新チャンネル作成時にWebhookを増やす必要はありません（その部署の依頼も受付chに届き、部署/ブランドはNotion側で識別）。部署chへ直接投稿したい場合のみ、hiroさんにそのch用Webhookを追加依頼。</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Q-B. Slack自動投稿（Webhook）をテストするには、何を準備すればいいか？</div>
+    <p style="margin:0;font-size:13.5px">アプリを作らないぶん、準備はぐっと軽くなります。「本番を汚さずに、送信〜投稿〜登録までを通しで試せる環境」を用意します。</p>
+    <table style="margin-top:10px">
+      <tr><th style="width:34%">準備するもの</th><th>内容</th></tr>
+      <tr><td><b>Slack Webhook URL</b></td><td>hiroさんに代理発行を依頼（受付ch用）。テストは安全のため<b>テスト用チャンネルのWebhookをもう1本</b>もらうのが理想。無ければ受付chに <code>[テスト]</code> 付きで投稿して確認</td></tr>
+      <tr><td><b>Notionテスト用DB</b></td><td>本番と別のDBを作成し、連携(インテグレーション)を共有。<b>Notionトークン</b>と<b>テストDBのID</b></td></tr>
+      <tr><td><b>Google OAuth(テスト)</b></td><td>テスト用クライアントID/シークレット。リダイレクトURLにlocalhostとVercelプレビューを登録。テストは<b>ユウキさん本人の@crazy.co.jpアカウント</b>でOK</td></tr>
+      <tr><td><b>環境変数</b></td><td>上記キーを <code>.env.local</code>（ローカル）とVercelの環境変数（プレビュー）に設定</td></tr>
+      <tr><td><b>公開URL</b></td><td><b>不要。</b>Webhookは「こちら→Slack」の一方向投稿なので、Slackから呼ばれる公開エンドポイントは持ちません（その分セキュアで簡単）</td></tr>
+      <tr><td><b>テストデータ</b></td><td>各種別＋改訂分岐をカバーするダミー依頼を数件</td></tr>
+    </table>
+    <div class="r"><b>合格基準:</b> フォーム送信 → ①NotionテストDBに全項目入りでチケット作成 → ②受付（テスト）チャンネルに要約＋NotionリンクがWebhookで投稿 → ③ステータス初期値が「未対応」、までを1本で確認できればOK。<br><b>ユウキさんにお願いしたい準備:</b> ❶受付チャンネル <code>#83_creative_クリ室依頼受付</code> の作成、❷hiroさんへ相談文送付＆Webhook URL受領、❸Notionテスト用DB作成、❹（任意）テスト用チャンネルのWebhook依頼。</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Q-C. 改訂依頼と、KV・プレスリリース・広告バナーのような企画背景まで要る依頼で、フォームをどう変えるか？</div>
+    <p style="margin:0;font-size:13.5px">ご認識の通り、<b>「最初に種別を選択 → その種別に応じた項目だけ表示」</b>が最善です。冒頭で3分岐させます。</p>
+    <div class="dgrid" style="margin-top:12px">
+      <div class="dbox">
+        <div class="h">① 改訂依頼（軽い）</div>
+        <ul>
+          <li>対象物のリンク（既存制作物）</li>
+          <li>変更箇所・差し替え素材</li>
+          <li>修正内容</li>
+          <li>納期（必須）</li>
+          <li class="muted">※ターゲット等は省略</li>
+          <li class="muted">※修正依頼ツールのURLも貼付可</li>
+        </ul>
+      </div>
+      <div class="dbox">
+        <div class="h">② 新規制作（重い）</div>
+        <ul>
+          <li>企画背景・目的（必須）</li>
+          <li>ターゲット（必須）</li>
+          <li>イベント概要 / 掲載・配信媒体</li>
+          <li>サイズ・仕様</li>
+          <li>参考資料・構成ラフ（添付）</li>
+          <li>予算感・納期（必須）</li>
+        </ul>
+      </div>
+      <div class="dbox">
+        <div class="h">③ 相談（与件未確定）</div>
+        <ul>
+          <li>相談したいこと</li>
+          <li>ざっくりの希望時期</li>
+          <li>関連リンク（あれば）</li>
+          <li class="muted">→ 打合せで②に昇格</li>
+        </ul>
+      </div>
+    </div>
+    <div class="r"><b>+α 推奨:</b> 「企画背景」「ターゲット」など重い欄は、<b>部署・ブランド選択から既定値を自動入力</b>し必要なら上書き。記入例（プレースホルダ）も添えると埋めやすくなります。<br><b>修正依頼ツール（既存）の組込み:</b> (a) 改訂分岐の中に<b>ツールへのリンク</b>を置き、書き出したURLをフォームに貼ってNotionへ記録。(b) 案件進行中も使えるよう、<b>受付ch／各チャンネルのブックマークに修正依頼ツールのリンクを常設</b>（＝スレッドからすぐ呼び出せる）。</div>
+  </div>
+</section>
+
+<!-- ⑥ 実装フロー -->
+<section id="flow">
+  <h2><span class="n">6</span>ステップバイステップ実装フロー</h2>
+  <p class="desc">小さく作って試し、改善する前提のフェーズ分けです。各フェーズを開くとチェックリストが出ます。<b>太字はユウキさん（あなた）の作業</b>、それ以外は私（Claude）が実装します。スクショが要る場面は都度お願いします。</p>
+
+  <details class="phase" open>
+    <summary><span class="ph-n">0</span>準備：アカウントと鍵<span class="ph-meta">主にユウキさん／半日</span></summary>
+    <div class="body">
+      <p class="muted" style="margin:0">コードを書く前に、各サービスの“鍵”を揃えます。アプリ作成が不要になったぶん項目は軽めです。</p>
+      <ul class="checklist">
+        <li><b>Slack</b>：受付チャンネル <code>#83_creative_クリ室依頼受付</code> を作成 → <b>hiroさんに相談文を送りWebhook URLを発行してもらう</b>（テスト用chのWebhookも依頼できれば理想）</li>
+        <li><b>Notion</b>：Plusへアップグレード／本番DBとテストDBを作成／インテグレーション作成・対象DBに共有</li>
+        <li><b>Google</b>：OAuthクライアント作成／リダイレクトURL登録／<code>hd=crazy.co.jp</code> でドメイン制限</li>
+        <li><b>Vercel</b>：プロジェクト作成／環境変数に全シークレット（Webhook URL含む）を登録（ブラウザに出さない）</li>
+        <li><b>Drive</b>：<code>02_案件管理</code>配下の保管フォルダ構成を確認／共有はドメイン限定に設定</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="phase">
+    <summary><span class="ph-n">1</span>データ設計：Notion DBと分岐の確定<span class="ph-meta">一緒に決める／1〜2時間</span></summary>
+    <div class="body">
+      <p class="muted" style="margin:0">フォーム項目＝NotionのプロパティなのでDB設計が土台です。下記をたたき台に確定します。</p>
+      <ul class="checklist">
+        <li><b>プロパティ確定</b>：依頼ID・タイトル・依頼者・部署・ブランド・種別・ステータス・優先度・希望納期・確定納期・受付日・担当・Slackリンク・Driveリンク・参考資料・予算・企画背景・ターゲット・媒体/サイズ・関連案件・完了日</li>
+        <li><b>ステータス確定</b>：未対応→対応中→確認中→修正対応→完了（＋保留・差戻し）</li>
+        <li><b>種別と必須項目の対応</b>：改訂／新規／相談 ごとの必須・任意（⑤参照）</li>
+        <li><b>ルーティング設定</b>：チャンネル↔部署/ブランド/Drive親フォルダ の対応表をNotion設定DBで作成</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="phase">
+    <summary><span class="ph-n">2</span>フォームMVP：入力〜Notion登録<span class="ph-meta">Claude実装／コア</span></summary>
+    <div class="body">
+      <ul class="checklist">
+        <li>Next.jsでフォーム作成（冒頭の種別分岐→条件付き項目）</li>
+        <li>Googleログインのゲート（@crazy.co.jp 限定・画面＋APIで検証）</li>
+        <li>サーバーAPIルートからNotionテストDBへ書き込み（冪等キーで二重防止）</li>
+        <li>送信完了画面にNotionチケットのリンクを表示</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="phase">
+    <summary><span class="ph-n">3</span>Slack連携：Webhook投稿とブックマーク設置<span class="ph-meta">Claude実装＋一緒に</span></summary>
+    <div class="body">
+      <ul class="checklist">
+        <li>サーバーから受付chへ <b>Incoming Webhookで要約＋Notionリンクを投稿</b>（読みやすいレイアウト）</li>
+        <li>「Notion作成→Webhook投稿」の順序と、投稿失敗時の再送</li>
+        <li><b>受付ch／各依頼chのブックマークにフォームのリンクを設置</b>（画面を見ながら一緒に）</li>
+        <li>修正依頼ツールのリンクもブックマークに常設</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="phase">
+    <summary><span class="ph-n">4</span>Drive連携：フォルダとURL登録<span class="ph-meta">Claude実装／v1は手動でも可</span></summary>
+    <div class="body">
+      <ul class="checklist">
+        <li>v1：依頼ID連動の命名規則でフォルダを手動作成→URLをNotionに登録</li>
+        <li>v2：Drive APIでフォルダ自動作成＋URLを自動書き戻し（後日）</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="phase">
+    <summary><span class="ph-n">5</span>テスト & パイロット<span class="ph-meta">一緒に／重要</span></summary>
+    <div class="body">
+      <ul class="checklist">
+        <li>テスト用Webhook＋ダミー依頼で通し確認（⑤Q-Bの合格基準）</li>
+        <li>受付ch＋1つの部署chで限定パイロット運用</li>
+        <li>依頼者・自分の使用感をヒアリングして調整</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="phase">
+    <summary><span class="ph-n">6</span>本番展開 & 運用<span class="ph-meta">継続</span></summary>
+    <div class="body">
+      <ul class="checklist">
+        <li>全チャンネルのブックマークにリンク展開／「依頼の出し方」「新チャンネル登録手順」を社内周知</li>
+        <li>月1のCSVエクスポート（バックアップ）を自動化</li>
+        <li>運用ログを見て改善（PDCAを回す）</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<!-- ⑦ PDCA -->
+<section id="pdca">
+  <h2><span class="n">7</span>PDCAを回した結果</h2>
+  <p class="desc">構想を2周見直しました。1周目で全体最適化、2周目でオーナー方針という現実制約を反映しています。</p>
+
+  <h3 style="margin-top:8px">1周目：3観点での最適化</h3>
+  <div class="pdca">
+    <div class="c"><div class="l">PLAN</div><p>Slack起点→フォーム→Notion→Driveの構想を、PM/データ/セキュリティの3観点で検証する。</p></div>
+    <div class="c"><div class="l">DO</div><p>Figma図とCLAUDE/BRIEFを読み、入口・与件・データ正本・認証・Slack連携方式を点検。</p></div>
+    <div class="c"><div class="l">CHECK</div><p>入口が多段／納期が曖昧／正本が不明確／公開URLの認証、を発見。</p></div>
+    <div class="c"><div class="l">ACT</div><p>入口の簡素化・種別分岐・Notion=正本の明文化・ドメイン制限認証、を提示。</p></div>
+  </div>
+
+  <h3>2周目：オーナー方針（新規アプリ不可）の反映</h3>
+  <div class="pdca">
+    <div class="c"><div class="l">PLAN</div><p>Slackアプリ(Bot)前提の案を、実運用に乗るか再点検する。</p></div>
+    <div class="c"><div class="l">DO</div><p>過去のhiroさん対応を確認＝「新規アプリ追加不可／既存WebhookをhiroがURL代理発行／専用ch方式」。</p></div>
+    <div class="c"><div class="l">CHECK</div><p>Botトークン前提のショートカット/スレッド投稿/部署別自動振り分けは実現不可と判明。</p></div>
+    <div class="c"><div class="l">ACT</div><p>入口を<b>チャンネルのブックマーク</b>、Slack連携を<b>Webhook＋受付ch集約</b>に変更。結果セキュリティもシンプルに（着信エンドポイント不要）。</p></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <p style="margin:0"><b>追加で組み込んだ改善（小さめ）：</b>依頼IDの発番、優先度の自動算出、二重送信防止、完了アーカイブの分離、CSVバックアップ、Drive共有のドメイン限定、関連案件のリレーション、修正依頼ツールのブックマーク常設。いずれも上記フローに反映済みです。</p>
+  </div>
+</section>
+
+<!-- ⑧ 決定事項と残課題 -->
+<section id="decided">
+  <h2><span class="n">8</span>決定事項と、次に必要なアクション</h2>
+  <p class="desc">これまでのやり取りで確定した内容と、残っているアクションです。</p>
+
+  <h3 style="margin-top:8px">✓ 確定したこと</h3>
+  <ul class="decided">
+    <li><b>入口</b>：チャンネルのブックマークからフォームを開く（Slackアプリ不要）</li>
+    <li><b>Slack連携</b>：Incoming Webhook（hiroさん代理発行）／受付ch <code>#83_creative_クリ室依頼受付</code>（新規作成）に集約</li>
+    <li><b>種別分岐</b>：改訂／新規／相談 の3分岐、種別ごとに項目を出し分け</li>
+    <li><b>修正依頼ツール</b>：改訂分岐にリンク＋URLをNotion記録、かつ各chのブックマークに常設してスレッドからも呼出</li>
+    <li><b>データ正本</b>：Notion＝正本／Slack＝連絡／Drive＝ファイル</li>
+    <li><b>チャンネル対応表</b>：Notion設定DB（ノーコードでユウキさんが編集）</li>
+    <li><b>Drive</b>：<code>02_案件管理</code>配下のブランド/事業別フォルダ。v1手動→v2自動</li>
+    <li><b>ステータス</b>：未対応→対応中→確認中→修正対応→完了（＋保留・差戻し）。「トリアージ/見積」は不採用</li>
+    <li><b>テスト</b>：当面ユウキさん本人の@crazy.co.jpアカウント、のちに部下アカウント</li>
+  </ul>
+
+  <h3>→ 次に必要なアクション（残課題）</h3>
+  <ul class="todo">
+    <li><b>ユウキさん</b>：受付チャンネル <code>#83_creative_クリ室依頼受付</code> を作成</li>
+    <li><b>ユウキさん</b>：hiroさんへ相談文を送付し、Webhook URLを受領（テスト用も依頼できれば）</li>
+    <li><b>ユウキさん</b>：Notionをプラスへアップグレード／テスト用DB作成可否</li>
+    <li><b>一緒に</b>：フェーズ1でNotionの最終プロパティと種別別必須項目を確定</li>
+    <li><b>要検討</b>：優先度の自動算出を入れるか／既存スプレッドシートの過去データを移行するか</li>
+  </ul>
+
+  <div class="card" style="margin-top:16px">
+    <p style="margin:0">受付チャンネル作成とWebhook受領が済めば、フェーズ1（データ設計）に着手できます。確定事項は <code>CLAUDE.md</code>（仕様）と <code>BRIEF.md</code>（技術）に反映済みです。</p>
+  </div>
+</section>
+
+<footer>
+  制作依頼ツール ／ システムレビュー・実装提案 ／ 2026-06-14 作成（rev.2：アプリ不使用・Webhook方式へ更新）／ このHTMLはワークスペース内に保存されています（system-review_2026-06-14.html）。
+</footer>
+
+</div>
+</body>
+</html>
